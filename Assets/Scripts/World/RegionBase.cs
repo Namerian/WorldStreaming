@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Game.World
 {
+    [ExecuteInEditMode]
     public abstract class RegionBase : MonoBehaviour
     {
         public enum eRegionMode
@@ -28,8 +29,9 @@ namespace Game.World
 
         #region member variables
 
-        //[SerializeField]
-        //private UniqueId id;
+        [SerializeField]
+        [HideInInspector]
+        private int instanceId;
 
         [SerializeField]
         [HideInInspector]
@@ -66,11 +68,9 @@ namespace Game.World
         private eRegionMode currentMode = eRegionMode.Inactive;
 
 #if UNITY_EDITOR
-
         [SerializeField]
         [HideInInspector]
         bool drawBounds;
-
 #endif
 
         #endregion member variables
@@ -104,6 +104,32 @@ namespace Game.World
         //========================================================================================
 
         #region monobehaviour methods
+
+#if UNITY_EDITOR
+        private void Awake()
+        {
+            if(instanceId == 0)
+            {
+                instanceId = GetInstanceID();
+
+                if (string.IsNullOrEmpty(id))
+                {
+                    id = Guid.NewGuid().ToString();
+                }
+
+                //"save" changes
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+            }
+            else if(!Application.isPlaying && instanceId != GetInstanceID())
+            {
+                instanceId = GetInstanceID();
+                id = Guid.NewGuid().ToString();
+
+                //"save" changes
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+            }
+        }
+#endif
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -186,7 +212,7 @@ namespace Game.World
 
                     if (!first)
                     {
-                        dist *= 1.5f;
+                        dist *= superRegion.World.SecondaryPositionDistanceModifier;
                     }
                     else
                     {
@@ -243,23 +269,33 @@ namespace Game.World
 
         public Transform GetSubSceneRoot(eSubSceneType subSceneType)
         {
-            if (Application.isPlaying)
+            foreach(Transform child in transform)
             {
-                return subSceneRoots[(int)subSceneType];
-            }
-            else
-            {
-                for (int i = 0; i < transform.childCount; i++)
-                {
-                    var child = transform.GetChild(i);
-                    var tag = child.GetComponent<SubScene>();
+                var tag = child.GetComponent<SubScene>();
 
-                    if (tag != null && tag.SubSceneType == subSceneType)
-                    {
-                        return child;
-                    }
+                if(tag && tag.SubSceneType == subSceneType)
+                {
+                    return child;
                 }
             }
+
+            //if (Application.isPlaying)
+            //{
+            //    return subSceneRoots[(int)subSceneType];
+            //}
+            //else
+            //{
+            //for (int i = 0; i < transform.childCount; i++)
+            //{
+            //    var child = transform.GetChild(i);
+            //    var tag = child.GetComponent<SubScene>();
+
+            //    if (tag != null && tag.SubSceneType == subSceneType)
+            //    {
+            //        return child;
+            //    }
+            //}
+            //}
 
             return null;
         }

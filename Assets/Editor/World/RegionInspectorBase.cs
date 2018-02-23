@@ -30,12 +30,12 @@ namespace Game.World
             localRenderDistanceInactiveProperty = serializedObject.FindProperty("localRenderDistanceInactive");
             drawBoundsProperty = serializedObject.FindProperty("drawBounds");
 
-            if (string.IsNullOrEmpty(idProperty.stringValue))
-            {
-                idProperty.stringValue = Guid.NewGuid().ToString();
+            //if (string.IsNullOrEmpty(idProperty.stringValue))
+            //{
+            //    idProperty.stringValue = Guid.NewGuid().ToString();
 
-                serializedObject.ApplyModifiedProperties();
-            }
+            //    serializedObject.ApplyModifiedProperties();
+            //}
         }
 
         public override void OnInspectorGUI()
@@ -68,7 +68,7 @@ namespace Game.World
 
             drawBoundsProperty.boolValue = EditorGUILayout.Toggle("Draw Bounds", drawBoundsProperty.boolValue);
 
-            if (!Application.isPlaying && self.transform.parent.GetComponent<World>().SubScenesLoaded)
+            if (!Application.isPlaying && self.transform.parent.GetComponent<World>().EditorSubScenesLoaded)
             {
                 GUILayout.Label("");
 

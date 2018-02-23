@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace Game.World
 {
-    public class World : MonoBehaviour
+    public class World : MonoBehaviour, IWorldEventHandler
     {
         public static readonly Dictionary<eSuperRegionType, Vector3> SUPERREGION_OFFSETS = new Dictionary<eSuperRegionType, Vector3>()
         {
@@ -33,11 +33,19 @@ namespace Game.World
 
         [SerializeField]
         [HideInInspector]
-        private float renderDistanceFar = 5;
+        private float renderDistanceFar;
 
         [SerializeField]
         [HideInInspector]
-        private float renderDistanceInactive = 10;
+        private float renderDistanceInactive;
+
+        [SerializeField]
+        [HideInInspector]
+        private float preTeleportOffset;
+
+        [SerializeField]
+        [HideInInspector]
+        private float secondaryPositionDistanceModifier;
 
         List<SuperRegion> superRegions = new List<SuperRegion>();
         Queue<SubSceneJob> subSceneJobs = new Queue<SubSceneJob>();
@@ -49,101 +57,36 @@ namespace Game.World
         private Transform myTransform;
 
 #if UNITY_EDITOR
-
         [SerializeField]
         [HideInInspector]
         private bool drawBounds;
-
 #endif
 
         [SerializeField]
         [HideInInspector]
         private bool editorSubScenesLoaded;
 
-
-
         #endregion member variables 
 
         //========================================================================================
 
+        #region properties
+
         public Vector3 WorldSize { get { return worldSize; } }
         public float RenderDistanceFar { get { return renderDistanceFar; } }
         public float RenderDistanceInactive { get { return renderDistanceInactive; } }
+        public bool EditorSubScenesLoaded { get { return editorSubScenesLoaded; } }
+        public float SecondaryPositionDistanceModifier { get { return secondaryPositionDistanceModifier; } }
 
-#if UNITY_EDITOR
-
-        public bool SubScenesLoaded { get { return editorSubScenesLoaded; } }
-
-#endif
+        #endregion properties
 
         //========================================================================================
 
-        #region runtime methods
+        #region monobehaviour methods
 
         private void Start()
         {
             Initialize();
-        }
-
-        public void Initialize()
-        {
-            myTransform = transform;
-
-            //find all the regions and clean them
-            var initialRegions = GetComponentsInChildren<RegionBase>().ToList();
-
-            foreach (var initialRegion in initialRegions)
-            {
-                initialRegion.Clear();
-            }
-
-            //if the subScenes are loaded they are used instead of the saved files and the world is not duplicated
-            if (editorSubScenesLoaded)
-            {
-                var superRegion = new GameObject(string.Concat("SuperRegion_", eSuperRegionType.Centre.ToString()), typeof(SuperRegion)).GetComponent<SuperRegion>();
-                superRegion.transform.SetParent(transform);
-                superRegion.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[eSuperRegionType.Centre]));
-
-                foreach (var region in initialRegions)
-                {
-                    region.transform.SetParent(superRegion.transform, true);
-                }
-
-                superRegion.Initialize(eSuperRegionType.Centre, this, initialRegions);
-                superRegions.Add(superRegion);
-            }
-            //else if the subScenes are not loaded the world is duplicated and the initial (empty) regions are destroyed
-            //create SuperRegions and clone the regions once for every SuperRegions
-            else
-            {
-                foreach (var superRegionType in Enum.GetValues(typeof(eSuperRegionType)).Cast<eSuperRegionType>())
-                {
-                    var superRegion = new GameObject(string.Concat("SuperRegion_", superRegionType.ToString()), typeof(SuperRegion)).GetComponent<SuperRegion>();
-                    superRegion.transform.SetParent(transform);
-                    superRegion.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[superRegionType]));
-
-
-                    var clonedRegions = new List<RegionBase>();
-                    foreach (var initialRegion in initialRegions)
-                    {
-                        var regionClone = Instantiate(initialRegion.gameObject, superRegion.transform, false);
-                        regionClone.name = initialRegion.name;
-
-                        clonedRegions.Add(regionClone.GetComponent<RegionBase>());
-                    }
-
-                    superRegion.Initialize(superRegionType, this, clonedRegions);
-                    superRegions.Add(superRegion);
-                }
-
-                //destroy the initial regions
-                foreach (var initialRegion in initialRegions)
-                {
-                    Destroy(initialRegion.gameObject);
-                }
-            }
-
-            isInitialized = true;
         }
 
         private void Update()
@@ -156,48 +99,46 @@ namespace Game.World
 
             var cameraPos = Camera.main.transform.position;
             var cameraPositions = new List<Vector3>() { cameraPos };
-
             var halfSize = worldSize * 0.5f;
-            int offset = 1;
 
-            if (cameraPos.x > halfSize.x - offset)
-            {
-                cameraPositions.Add(cameraPos + new Vector3(-worldSize.x, 0, 0));
-            }
-            else if (cameraPos.x < -halfSize.x + offset)
-            {
-                cameraPositions.Add(cameraPos + new Vector3(worldSize.x, 0, 0));
-            }
+            //if (cameraPos.x > halfSize.x - preTeleportOffset)
+            //{
+            //    cameraPositions.Add(cameraPos + new Vector3(-worldSize.x, 0, 0));
+            //}
+            //else if (cameraPos.x < -halfSize.x + preTeleportOffset)
+            //{
+            //    cameraPositions.Add(cameraPos + new Vector3(worldSize.x, 0, 0));
+            //}
 
-            if (cameraPos.y > halfSize.y - offset)
+            if (cameraPos.y > halfSize.y - preTeleportOffset)
             {
                 cameraPositions.Add(cameraPos + new Vector3(0, -worldSize.y, 0));
             }
-            else if (cameraPos.y < -halfSize.y + offset)
+            else if (cameraPos.y < -halfSize.y + preTeleportOffset)
             {
                 cameraPositions.Add(cameraPos + new Vector3(0, worldSize.y, 0));
             }
 
-            if (cameraPos.z > halfSize.z - offset)
+            if (cameraPos.z > halfSize.z - preTeleportOffset)
             {
                 cameraPositions.Add(cameraPos + new Vector3(0, 0, -worldSize.z));
             }
-            else if (cameraPos.z < -halfSize.z + offset)
+            else if (cameraPos.z < -halfSize.z + preTeleportOffset)
             {
                 cameraPositions.Add(cameraPos + new Vector3(0, 0, worldSize.z));
             }
 
-            string positions = "";
-            foreach (var pos in cameraPositions)
-            {
-                positions += pos.ToString() + " ";
-            }
+            //string positions = "";
+            //foreach (var pos in cameraPositions)
+            //{
+            //    positions += pos.ToString() + " ";
+            //}
             //Debug.LogFormat("World: cameraPositions = {0}", positions);
 
             var newJobs = superRegions[currentSuperRegionIndex].UpdateSuperRegion(cameraPositions);
             if (newJobs.Count != 0)
             {
-                Debug.Log("SuperRegion " + superRegions[currentSuperRegionIndex] + ": " + newJobs.Count + " new jobs");
+                //Debug.Log("SuperRegion " + superRegions[currentSuperRegionIndex] + ": " + newJobs.Count + " new jobs");
             }
 
             foreach (var job in newJobs)
@@ -229,64 +170,224 @@ namespace Game.World
             }
         }
 
-        private IEnumerator LoadSubSceneCR(SubSceneJob job)
+#if UNITY_EDITOR
+        private void OnValidate()
         {
-            Debug.LogFormat("Load Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
-            isJobRunning = true;
-
-            string sceneName = WorldUtility.GetSubSceneName(job.Region.SuperRegion.Type, job.Region.UniqueId, job.SceneType);
-
-            if (job.Region.GetSubSceneRoot(job.SceneType))
+            float part = renderDistanceFar * 0.2f;
+            if (part < 1)
             {
-                Debug.LogWarningFormat("Load Job for existing subScene started! region=\"{0}\", subScene=\"{1}\"", job.Region.name, job.SceneType.ToString());
+                part = 1;
+            }
+            else if (part - (int)part > 0)
+            {
+                part = (int)part + 1;
             }
 
-            if (!Application.CanStreamedLevelBeLoaded(sceneName))
+            if (renderDistanceInactive < renderDistanceFar + part)
             {
-                Debug.LogWarningFormat("scene {0} cannot be streamed", sceneName);
-                var root = new GameObject("empty").transform;
-                root.SetParent(job.Region.transform);
-                job.SubSceneRoot = root;
+                renderDistanceInactive = renderDistanceFar + part;
             }
-            else
-            {
-                AsyncOperation async = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive);
 
-                while (!async.isDone)
+            if (preTeleportOffset < 1)
+            {
+                preTeleportOffset = 1;
+            }
+
+            if(secondaryPositionDistanceModifier < 0)
+            {
+                secondaryPositionDistanceModifier = 0;
+            }
+        }
+#endif
+
+#if UNITY_EDITOR
+        private void OnDrawGizmos()
+        {
+            if (drawBounds && Application.isEditor)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireCube(transform.position, worldSize);
+            }
+        }
+#endif
+
+        #endregion monobehaviour methods
+
+        //========================================================================================
+
+        #region public methods
+
+        public void Initialize()
+        {
+            myTransform = transform;
+
+            //find all the initial regions and clean them
+            var initialRegions = GetComponentsInChildren<RegionBase>().ToList();
+
+            //if the subScenes are loaded they are used instead of the saved files and the world is not duplicated
+            if (editorSubScenesLoaded)
+            {
+                var superRegion = new GameObject(string.Concat("SuperRegion_", eSuperRegionType.Centre.ToString()), typeof(SuperRegion)).GetComponent<SuperRegion>();
+                superRegion.transform.SetParent(transform);
+                superRegion.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[eSuperRegionType.Centre]));
+
+                foreach (var region in initialRegions)
                 {
-                    yield return null;
+                    region.transform.SetParent(superRegion.transform, true);
+
+                    //deactivating all subScenes
+                    foreach(Transform child in region.transform)
+                    {
+                        if (child.GetComponent<SubScene>())
+                        {
+                            child.gameObject.SetActive(false);
+                        }
+                    }
                 }
 
-                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByName(sceneName);
-                var root = scene.GetRootGameObjects()[0].transform;
-                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(root.gameObject, this.gameObject.scene);
-                root.SetParent(job.Region.transform);
-                job.SubSceneRoot = root;
-
-                async = UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(sceneName);
-
-                while (!async.isDone)
+                superRegion.Initialize(eSuperRegionType.Centre, this, initialRegions);
+                superRegions.Add(superRegion);
+            }
+            //else if the subScenes are not loaded the world is duplicated and the initial (empty) regions are destroyed
+            //create SuperRegions and clone the regions once for every SuperRegions
+            else
+            {
+                //"cleaning" the initial regions, just in case
+                foreach (var initialRegion in initialRegions)
                 {
-                    yield return null;
+                    initialRegion.Clear();
+                }
+
+                //creating all the superRegions and duplicating the initial regions into them
+                foreach (var superRegionType in Enum.GetValues(typeof(eSuperRegionType)).Cast<eSuperRegionType>())
+                {
+                    var superRegion = new GameObject(string.Concat("SuperRegion_", superRegionType.ToString()), typeof(SuperRegion)).GetComponent<SuperRegion>();
+                    superRegion.transform.SetParent(transform);
+                    superRegion.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[superRegionType]));
+
+
+                    var clonedRegions = new List<RegionBase>();
+                    foreach (var initialRegion in initialRegions)
+                    {
+                        var regionClone = Instantiate(initialRegion.gameObject, superRegion.transform, false);
+                        regionClone.name = initialRegion.name;
+
+                        clonedRegions.Add(regionClone.GetComponent<RegionBase>());
+                    }
+
+                    superRegion.Initialize(superRegionType, this, clonedRegions);
+                    superRegions.Add(superRegion);
+                }
+
+                //destroy the initial regions
+                foreach (var initialRegion in initialRegions)
+                {
+                    Destroy(initialRegion.gameObject);
+                }
+            }
+
+            isInitialized = true;
+        }
+
+        #endregion public regions
+
+        //========================================================================================
+
+        #region private methods
+
+        /// <summary>
+        /// Runtime Coroutine that loads a subScene
+        /// </summary>
+        /// <param name="job"></param>
+        /// <returns></returns>
+        private IEnumerator LoadSubSceneCR(SubSceneJob job)
+        {
+            isJobRunning = true;
+            //Debug.LogFormat("Load Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
+
+            string sceneName = WorldUtility.GetSubSceneName(job.Region.SuperRegion.Type, job.Region.UniqueId, job.SceneType);
+            var subSceneRoot = job.Region.GetSubSceneRoot(job.SceneType);
+
+            //editor subScenes are loaded (no streaming)
+            if (editorSubScenesLoaded)
+            {
+                if (subSceneRoot)
+                {
+                    subSceneRoot.gameObject.SetActive(true);
+                }
+            }
+            //streaming
+            else
+            {
+                if (subSceneRoot)
+                {
+                    Debug.LogWarningFormat("Load Job for existing subScene started! region=\"{0}\", subScene=\"{1}\"", job.Region.name, job.SceneType.ToString());
+                }
+                else if (!Application.CanStreamedLevelBeLoaded(sceneName))
+                {
+                    Debug.LogWarningFormat("scene {0} cannot be streamed", sceneName);
+                    var root = new GameObject("empty").transform;
+                    root.SetParent(job.Region.transform);
+                    job.SubSceneRoot = root;
+                }
+                else
+                {
+                    AsyncOperation async = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
+
+                    while (!async.isDone)
+                    {
+                        yield return null;
+                    }
+
+                    Scene scene = SceneManager.GetSceneByName(sceneName);
+                    var root = scene.GetRootGameObjects()[0].transform;
+                    SceneManager.MoveGameObjectToScene(root.gameObject, gameObject.scene);
+                    root.SetParent(job.Region.transform);
+                    job.SubSceneRoot = root;
+
+                    async = SceneManager.UnloadSceneAsync(sceneName);
+
+                    while (!async.isDone)
+                    {
+                        yield return null;
+                    }
                 }
             }
 
             job.IsJobSuccessful = true;
             job.Callback(job);
+
+            //Debug.Log("Load Job done");
             isJobRunning = false;
-            Debug.Log("Load Job done");
         }
 
+        /// <summary>
+        /// Runtime Coroutine that unloads a subScene.
+        /// </summary>
+        /// <param name="job"></param>
+        /// <returns></returns>
         private IEnumerator UnloadSubSceneCR(SubSceneJob job)
         {
-            Debug.LogFormat("Unload Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
             isJobRunning = true;
+            //Debug.LogFormat("Unload Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
 
             var subSceneRoot = job.Region.GetSubSceneRoot(job.SceneType);
 
-            if (subSceneRoot)
+            //editor subScenes are loaded (no streaming)
+            if (editorSubScenesLoaded)
             {
-                Destroy(subSceneRoot.gameObject);
+                if (subSceneRoot)
+                {
+                    subSceneRoot.gameObject.SetActive(false);
+                }
+            }
+            //streaming
+            else
+            {
+                if (subSceneRoot)
+                {
+                    Destroy(subSceneRoot.gameObject);
+                }
             }
 
             //if (job.SubSceneRoot != null)
@@ -307,49 +408,17 @@ namespace Game.World
             //}
 
             yield return null;
-            Resources.UnloadUnusedAssets();
+            //Resources.UnloadUnusedAssets();
 
             job.IsJobSuccessful = true;
             job.Callback(job);
+
+            //Debug.Log("Unload Job done");
             isJobRunning = false;
-            Debug.Log("Unload Job done");
         }
 
-        #endregion runtime regions
-
-        //========================================================================================
-
-        #region editor methods
 #if UNITY_EDITOR
-
-        private void OnValidate()
-        {
-            float part = renderDistanceFar * 0.2f;
-            if (part < 1)
-            {
-                part = 1;
-            }
-            else if (part - (int)part > 0)
-            {
-                part = (int)part + 1;
-            }
-
-            if (renderDistanceInactive < renderDistanceFar + part)
-            {
-                renderDistanceInactive = renderDistanceFar + part;
-            }
-        }
-
-        private void OnDrawGizmos()
-        {
-            if (drawBounds && Application.isEditor)
-            {
-                Gizmos.color = Color.red;
-                Gizmos.DrawWireCube(transform.position, worldSize);
-            }
-        }
-
-        public void ImportSubScenes()
+        void IWorldEventHandler.ImportSubScenes()
         {
             if (editorSubScenesLoaded)
             {
@@ -419,13 +488,18 @@ namespace Game.World
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
             editorSubScenesLoaded = true;
         }
+#endif
 
-        public void ExportSubScenes()
+#if UNITY_EDITOR
+        void IWorldEventHandler.ExportSubScenes()
         {
             if (!editorSubScenesLoaded)
             {
                 return;
             }
+
+            //clear subScene folder
+            ((IWorldEventHandler)this).ClearSubSceneFolder();
 
             //create folder, in case it does not exist
             string scenePath = gameObject.scene.path;
@@ -500,11 +574,13 @@ namespace Game.World
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
             editorSubScenesLoaded = false;
         }
+#endif
 
+#if UNITY_EDITOR
         /// <summary>
         /// Deletes the SubScene folder and its content and removes the subScenes from the build settings, but only if the subScenes have been loaded first.
         /// </summary>
-        public void ClearSubSceneFolder()
+        void IWorldEventHandler.ClearSubSceneFolder()
         {
             if (!editorSubScenesLoaded)
             {
@@ -514,13 +590,14 @@ namespace Game.World
             string worldScenePath = gameObject.scene.path;
             string worldSceneFolderPath = worldScenePath.Remove(worldScenePath.LastIndexOf('.'));
 
+            //cleaning build settings
             var scenes = UnityEditor.EditorBuildSettings.scenes.ToList();
             var scenesToRemove = new List<UnityEditor.EditorBuildSettingsScene>();
-            string pathPart = string.Concat(worldSceneFolderPath, "/SubScene_");
+            string pathPart = "/SubScene_"; //string.Concat(worldSceneFolderPath, "/SubScene_");
 
             foreach (var sceneEntry in scenes)
             {
-                if (sceneEntry.path.Contains(pathPart))
+                if (sceneEntry.path.Contains(pathPart) || string.IsNullOrEmpty(sceneEntry.path))
                 {
                     scenesToRemove.Add(sceneEntry);
                 }
@@ -533,9 +610,10 @@ namespace Game.World
 
             UnityEditor.EditorBuildSettings.scenes = scenes.ToArray();
 
+            //deleting subScene folder (of the current scene only)
             UnityEditor.FileUtil.DeleteFileOrDirectory(worldSceneFolderPath);
+            UnityEditor.AssetDatabase.Refresh();
         }
-
 #endif
         #endregion editor methods
 

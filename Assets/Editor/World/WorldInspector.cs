@@ -11,8 +11,12 @@ namespace Game.World
         private World self;
 
         private SerializedProperty worldSizeProperty;
+
         private SerializedProperty renderDistanceFarProperty;
         private SerializedProperty renderDistanceInactiveProperty;
+        private SerializedProperty preTeleportOffsetProperty;
+        private SerializedProperty secondaryPositionDistanceModifierProperty;
+
         private SerializedProperty drawBoundsProperty;
         private SerializedProperty subScenesLoaded;
 
@@ -21,8 +25,12 @@ namespace Game.World
             self = target as World;
 
             worldSizeProperty = serializedObject.FindProperty("worldSize");
+
             renderDistanceFarProperty = serializedObject.FindProperty("renderDistanceFar");
             renderDistanceInactiveProperty = serializedObject.FindProperty("renderDistanceInactive");
+            preTeleportOffsetProperty = serializedObject.FindProperty("preTeleportOffset");
+            secondaryPositionDistanceModifierProperty = serializedObject.FindProperty("secondaryPositionDistanceModifier");
+
             drawBoundsProperty = serializedObject.FindProperty("drawBounds");
             subScenesLoaded = serializedObject.FindProperty("editorSubScenesLoaded");
         }
@@ -37,8 +45,10 @@ namespace Game.World
 
             EditorGUILayout.LabelField("Render Distances");
 
-            renderDistanceFarProperty.floatValue = EditorGUILayout.FloatField("  Far", renderDistanceFarProperty.floatValue);
-            renderDistanceInactiveProperty.floatValue = EditorGUILayout.FloatField("  Inactive", renderDistanceInactiveProperty.floatValue);
+            renderDistanceFarProperty.floatValue = EditorGUILayout.FloatField("Far", renderDistanceFarProperty.floatValue);
+            renderDistanceInactiveProperty.floatValue = EditorGUILayout.FloatField("Inactive", renderDistanceInactiveProperty.floatValue);
+            preTeleportOffsetProperty.floatValue = EditorGUILayout.FloatField("PreTeleportOffset", preTeleportOffsetProperty.floatValue);
+            secondaryPositionDistanceModifierProperty.floatValue = EditorGUILayout.FloatField("SecondaryPositionDistanceModifier", secondaryPositionDistanceModifierProperty.floatValue);
 
             EditorGUILayout.LabelField("----");
 
@@ -52,19 +62,22 @@ namespace Game.World
                 {
                     if (GUILayout.Button("Export SubScenes"))
                     {
-                        self.ExportSubScenes();
+                        UnityEngine.EventSystems.ExecuteEvents.Execute<IWorldEventHandler>(self.gameObject, null, (x,y)=>x.ExportSubScenes());
+                        //self.SendMessage("ExportSubScenes");
                     }
 
                     if (GUILayout.Button("Clear SubScene Folder"))
                     {
-                        self.ClearSubSceneFolder();
+                        UnityEngine.EventSystems.ExecuteEvents.Execute<IWorldEventHandler>(self.gameObject, null, (x, y) => x.ClearSubSceneFolder());
+                        //self.SendMessage("ClearSubSceneFolder");
                     }
                 }
                 else
                 {
                     if (GUILayout.Button("Import SubScenes"))
                     {
-                        self.ImportSubScenes();
+                        UnityEngine.EventSystems.ExecuteEvents.Execute<IWorldEventHandler>(self.gameObject, null, (x, y) => x.ImportSubScenes());
+                        //self.SendMessage("ImportSubScenes");
                     }
                 }
 
