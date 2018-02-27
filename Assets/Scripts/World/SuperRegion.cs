@@ -32,13 +32,15 @@ namespace Game.World
             }
         }
 
-        public List<SubSceneJob> UpdateSuperRegion(List<Vector3> cameraPositions)
+        public List<SubSceneJob> UpdateSuperRegion(Transform cameraTransform, List<Vector3> teleportPositions)
         {
             var result = new List<SubSceneJob>();
             foreach (var region in regions)
             {
-                result.AddRange(region.UpdateRegion(cameraPositions));
+                result.AddRange(region.UpdateRegion(cameraTransform, teleportPositions));
             }
+
+            result.RemoveAll(item => item == null);
             return result;
         }
 

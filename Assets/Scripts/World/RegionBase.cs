@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Game.World
 {
-    [ExecuteInEditMode]
+    [RequireComponent(typeof(UniqueId))]
     public abstract class RegionBase : MonoBehaviour
     {
         public enum eRegionMode
@@ -31,14 +31,6 @@ namespace Game.World
 
         [SerializeField]
         [HideInInspector]
-        private int instanceId;
-
-        [SerializeField]
-        [HideInInspector]
-        private string id;
-
-        [SerializeField]
-        [HideInInspector]
         private Vector3 boundsSize;
 
         [SerializeField]
@@ -59,13 +51,12 @@ namespace Game.World
 
         private Transform myTransform;
         private SuperRegion superRegion;
-
-        protected bool[] loadedSubScenes = new bool[Enum.GetValues(typeof(eSubSceneType)).Length];
-
+        private UniqueId uniqueId;
         protected eSubSceneState[] subSceneStates = new eSubSceneState[Enum.GetValues(typeof(eSubSceneType)).Length];
         protected Transform[] subSceneRoots = new Transform[Enum.GetValues(typeof(eSubSceneType)).Length];
-
         private eRegionMode currentMode = eRegionMode.Inactive;
+        private bool isInitialized;
+        private List<Vector3> boundsCorners;
 
 #if UNITY_EDITOR
         [SerializeField]
@@ -81,7 +72,14 @@ namespace Game.World
 
         public Bounds Bounds { get { return new Bounds(transform.position, boundsSize); } }
 
-        public string UniqueId { get { return id; } }
+        public string Id {
+            get {
+                if(!uniqueId){
+                    uniqueId = GetComponent<UniqueId>();
+                }
+                return uniqueId.Id; 
+            } 
+        }
 
         public SuperRegion SuperRegion { get { return superRegion; } }
 
@@ -105,31 +103,31 @@ namespace Game.World
 
         #region monobehaviour methods
 
-#if UNITY_EDITOR
-        private void Awake()
-        {
-            if(instanceId == 0)
-            {
-                instanceId = GetInstanceID();
+// #if UNITY_EDITOR
+//         private void Awake()
+//         {
+//             if(instanceId == 0)
+//             {
+//                 instanceId = GetInstanceID();
 
-                if (string.IsNullOrEmpty(id))
-                {
-                    id = Guid.NewGuid().ToString();
-                }
+//                 if (string.IsNullOrEmpty(id))
+//                 {
+//                     id = Guid.NewGuid().ToString();
+//                 }
 
-                //"save" changes
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
-            }
-            else if(!Application.isPlaying && instanceId != GetInstanceID())
-            {
-                instanceId = GetInstanceID();
-                id = Guid.NewGuid().ToString();
+//                 //"save" changes
+//                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+//             }
+//             else if(!Application.isPlaying && instanceId != GetInstanceID())
+//             {
+//                 instanceId = GetInstanceID();
+//                 id = Guid.NewGuid().ToString();
 
-                //"save" changes
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
-            }
-        }
-#endif
+//                 //"save" changes
+//                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+//             }
+//         }
+// #endif
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -182,86 +180,121 @@ namespace Game.World
 
         public virtual void Initialize(SuperRegion superRegion)
         {
+            if(isInitialized){
+                return;
+            }
+
             myTransform = transform;
             this.superRegion = superRegion;
 
             foreach (var value in Enum.GetValues(typeof(eSubSceneType)).Cast<eSubSceneType>())
             {
                 int index = (int)value;
-
                 subSceneStates[index] = subSceneRoots[index] ? eSubSceneState.Loaded : eSubSceneState.Unloaded;
             }
+
+            Bounds bounds = new Bounds(myTransform.position, boundsSize);
+            boundsCorners = new List<Vector3>(){
+                new Vector3(bounds.center.x + bounds.extents.x, bounds.center.y + bounds.extents.y, bounds.center.z + bounds.extents.z),
+                new Vector3(bounds.center.x + bounds.extents.x, bounds.center.y + bounds.extents.y, bounds.center.z - bounds.extents.z),
+                new Vector3(bounds.center.x + bounds.extents.x, bounds.center.y - bounds.extents.y, bounds.center.z + bounds.extents.z),
+                new Vector3(bounds.center.x + bounds.extents.x, bounds.center.y - bounds.extents.y, bounds.center.z - bounds.extents.z),
+                new Vector3(bounds.center.x - bounds.extents.x, bounds.center.y + bounds.extents.y, bounds.center.z + bounds.extents.z),
+                new Vector3(bounds.center.x - bounds.extents.x, bounds.center.y + bounds.extents.y, bounds.center.z - bounds.extents.z),
+                new Vector3(bounds.center.x - bounds.extents.x, bounds.center.y - bounds.extents.y, bounds.center.z + bounds.extents.z),
+                new Vector3(bounds.center.x - bounds.extents.x, bounds.center.y - bounds.extents.y, bounds.center.z - bounds.extents.z)
+            };
+
+            isInitialized = true;
         }
 
-        public List<SubSceneJob> UpdateRegion(List<Vector3> cameraPositions)
+        public List<SubSceneJob> UpdateRegion(Transform cameraTransform, List<Vector3> teleportPositions)
         {
-            Bounds bounds = new Bounds(myTransform.position, boundsSize);
-            float distance = float.MaxValue;
-            bool first = true;
+            if(!isInitialized){
+                return null;
+            }
 
-            foreach (var cameraPosition in cameraPositions)
-            {
+            Bounds bounds = new Bounds(myTransform.position, boundsSize);
+            bool isVisible = false;
+            Vector3 cameraPosition = cameraTransform.position;
+            var result = new List<SubSceneJob>();
+
+            //check if visible
+            foreach(var corner in boundsCorners){
+                Vector3 vectorToCorner = corner - cameraPosition;
+
+                if(Vector3.Angle(vectorToCorner, cameraTransform.forward) < 100){
+                    isVisible = true;
+                    break;
+                }
+            }
+
+            if(!isVisible){
+                if(currentMode != eRegionMode.Inactive){
+                    result = SwitchMode(eRegionMode.Inactive);
+                }
+            }
+            else{
+                float distance = float.MaxValue;
+
                 if (bounds.Contains(cameraPosition))
                 {
                     distance = 0;
-                    break;
                 }
-                else
+                else{
+                    distance = (bounds.ClosestPoint(cameraPosition) - cameraPosition).magnitude;
+
+                    foreach(var teleportPosition in teleportPositions){
+                        if (bounds.Contains(teleportPosition))
+                        {
+                            distance = 0;
+                            break;
+                        }
+                        else{
+                            float dist = (bounds.ClosestPoint(teleportPosition) - teleportPosition).magnitude;
+                            dist *= superRegion.World.SecondaryPositionDistanceModifier;
+
+                            if (dist < distance)
+                            {
+                                distance = dist;
+                            }
+                        }
+                    }
+                }
+
+                switch (currentMode)
                 {
-                    float dist = (bounds.ClosestPoint(cameraPosition) - cameraPosition).magnitude;
-
-                    if (!first)
-                    {
-                        dist *= superRegion.World.SecondaryPositionDistanceModifier;
-                    }
-                    else
-                    {
-                        first = false;
-                    }
-
-                    if (dist < distance)
-                    {
-                        distance = dist;
-                    }
+                    case eRegionMode.Near:
+                        if (distance > RenderDistanceInactive * 1.1f)
+                        {
+                            result = SwitchMode(eRegionMode.Inactive);
+                        }
+                        else if (distance > RenderDistanceFar * 1.1f)
+                        {
+                            result = SwitchMode(eRegionMode.Far);
+                        }
+                        break;
+                    case eRegionMode.Far:
+                        if (distance > RenderDistanceInactive * 1.1f)
+                        {
+                            result = SwitchMode(eRegionMode.Inactive);
+                        }
+                        else if (distance < RenderDistanceFar)
+                        {
+                            result = SwitchMode(eRegionMode.Near);
+                        }
+                        break;
+                    case eRegionMode.Inactive:
+                        if (distance < RenderDistanceFar)
+                        {
+                            result = SwitchMode(eRegionMode.Near);
+                        }
+                        else if (distance < RenderDistanceInactive)
+                        {
+                            result = SwitchMode(eRegionMode.Far);
+                        }
+                        break;
                 }
-            }
-
-            //Debug.LogFormat("RegionBase: Update: nearest camera pos = {0}", distance);
-
-            var result = new List<SubSceneJob>();
-
-            switch (currentMode)
-            {
-                case eRegionMode.Near:
-                    if (distance > RenderDistanceInactive * 1.1f)
-                    {
-                        result = SwitchMode(eRegionMode.Inactive);
-                    }
-                    else if (distance > RenderDistanceFar * 1.1f)
-                    {
-                        result = SwitchMode(eRegionMode.Far);
-                    }
-                    break;
-                case eRegionMode.Far:
-                    if (distance > RenderDistanceInactive * 1.1f)
-                    {
-                        result = SwitchMode(eRegionMode.Inactive);
-                    }
-                    else if (distance < RenderDistanceFar)
-                    {
-                        result = SwitchMode(eRegionMode.Near);
-                    }
-                    break;
-                case eRegionMode.Inactive:
-                    if (distance < RenderDistanceFar)
-                    {
-                        result = SwitchMode(eRegionMode.Near);
-                    }
-                    else if (distance < RenderDistanceInactive)
-                    {
-                        result = SwitchMode(eRegionMode.Far);
-                    }
-                    break;
             }
 
             return result;
@@ -405,7 +438,7 @@ namespace Game.World
         {
             foreach (var subSceneType in SubSceneTypes)
             {
-                string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, eSuperRegionType.Centre, UniqueId, subSceneType);
+                string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, Id, subSceneType);
                 string subScenePathFull = WorldUtility.GetFullPath(subScenePath);
 
                 if (GetSubSceneRoot(subSceneType) != null)
@@ -433,49 +466,43 @@ namespace Game.World
 
         //========================================================================================
 
-        #region editor methods
+//         #region editor methods
 
-#if UNITY_EDITOR
+// #if UNITY_EDITOR
 
+//         /// <summary>
+//         /// Helper methods that checks whether the id of the region is unique or not.
+//         /// </summary>
+//         /// <returns></returns>
+//         public bool IsRegionIdUnique()
+//         {
+//             Transform parentTransform = transform.parent;
+//             string regionId = GetComponent<RegionBase>().UniqueId;
+//             int occurences = 0;
 
+//             for (int i = 0; i < parentTransform.childCount; i++)
+//             {
+//                 var child = parentTransform.GetChild(i).GetComponent<RegionBase>();
 
+//                 if (child != null && child.UniqueId == regionId)
+//                 {
+//                     occurences++;
+//                 }
+//             }
 
+//             if (occurences > 1)
+//             {
+//                 return false;
+//             }
+//             else
+//             {
+//                 return true;
+//             }
+//         }
 
+// #endif
 
-
-        /// <summary>
-        /// Helper methods that checks whether the id of the region is unique or not.
-        /// </summary>
-        /// <returns></returns>
-        public bool IsRegionIdUnique()
-        {
-            Transform parentTransform = transform.parent;
-            string regionId = GetComponent<RegionBase>().UniqueId;
-            int occurences = 0;
-
-            for (int i = 0; i < parentTransform.childCount; i++)
-            {
-                var child = parentTransform.GetChild(i).GetComponent<RegionBase>();
-
-                if (child != null && child.UniqueId == regionId)
-                {
-                    occurences++;
-                }
-            }
-
-            if (occurences > 1)
-            {
-                return false;
-            }
-            else
-            {
-                return true;
-            }
-        }
-
-#endif
-
-        #endregion editor methods
+//         #endregion editor methods
 
         //========================================================================================
     }

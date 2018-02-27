@@ -11,15 +11,15 @@ namespace Game.World
             return string.Concat("SubScene_", type.ToString());
         }
 
-        public static string GetSubSceneName(eSuperRegionType superRegionTag, string regionId, eSubSceneType subSceneTag)
+        public static string GetSubSceneName(string regionId, eSubSceneType subSceneTag)
         {
-            return string.Concat("SubScene_", superRegionTag.ToString(), "_", regionId, "_", subSceneTag.ToString());
+            return string.Concat("SubScene_", regionId, "_", subSceneTag.ToString());
         }
 
-        public static string GetSubScenePath(string worldScenePath, eSuperRegionType superRegionTag, string regionId, eSubSceneType subSceneTag)
+        public static string GetSubScenePath(string worldScenePath, string regionId, eSubSceneType subSceneTag)
         {
             string worldScenePathCleaned = worldScenePath.Remove(worldScenePath.LastIndexOf('.'));
-            return string.Concat(worldScenePathCleaned, "/", GetSubSceneName(superRegionTag, regionId, subSceneTag), ".unity");
+            return string.Concat(worldScenePathCleaned, "/", GetSubSceneName(regionId, subSceneTag), ".unity");
         }
 
         public static string GetFullPath(string path)

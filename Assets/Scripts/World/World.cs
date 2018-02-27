@@ -97,49 +97,50 @@ namespace Game.World
                 return;
             }
 
-            var cameraPos = Camera.main.transform.position;
-            var cameraPositions = new List<Vector3>() { cameraPos };
+            var cameraTransform = Camera.main.transform;
+            var cameraPos = cameraTransform.position;
+            var teleportPositions = new List<Vector3>();
             var halfSize = worldSize * 0.5f;
 
             //if (cameraPos.x > halfSize.x - preTeleportOffset)
             //{
-            //    cameraPositions.Add(cameraPos + new Vector3(-worldSize.x, 0, 0));
+            //    teleportPositions.Add(cameraPos + new Vector3(-worldSize.x, 0, 0));
             //}
             //else if (cameraPos.x < -halfSize.x + preTeleportOffset)
             //{
-            //    cameraPositions.Add(cameraPos + new Vector3(worldSize.x, 0, 0));
+            //    teleportPositions.Add(cameraPos + new Vector3(worldSize.x, 0, 0));
             //}
 
             if (cameraPos.y > halfSize.y - preTeleportOffset)
             {
-                cameraPositions.Add(cameraPos + new Vector3(0, -worldSize.y, 0));
+                teleportPositions.Add(cameraPos + new Vector3(0, -worldSize.y, 0));
             }
             else if (cameraPos.y < -halfSize.y + preTeleportOffset)
             {
-                cameraPositions.Add(cameraPos + new Vector3(0, worldSize.y, 0));
+                teleportPositions.Add(cameraPos + new Vector3(0, worldSize.y, 0));
             }
 
             if (cameraPos.z > halfSize.z - preTeleportOffset)
             {
-                cameraPositions.Add(cameraPos + new Vector3(0, 0, -worldSize.z));
+                teleportPositions.Add(cameraPos + new Vector3(0, 0, -worldSize.z));
             }
             else if (cameraPos.z < -halfSize.z + preTeleportOffset)
             {
-                cameraPositions.Add(cameraPos + new Vector3(0, 0, worldSize.z));
+                teleportPositions.Add(cameraPos + new Vector3(0, 0, worldSize.z));
             }
 
             //string positions = "";
-            //foreach (var pos in cameraPositions)
+            //foreach (var pos in teleportPositions)
             //{
             //    positions += pos.ToString() + " ";
             //}
-            //Debug.LogFormat("World: cameraPositions = {0}", positions);
+            //Debug.LogFormat("World: teleportPositions = {0}", positions);
 
-            var newJobs = superRegions[currentSuperRegionIndex].UpdateSuperRegion(cameraPositions);
-            if (newJobs.Count != 0)
-            {
+            var newJobs = superRegions[currentSuperRegionIndex].UpdateSuperRegion(cameraTransform, teleportPositions);
+            //if (newJobs.Count != 0)
+            //{
                 //Debug.Log("SuperRegion " + superRegions[currentSuperRegionIndex] + ": " + newJobs.Count + " new jobs");
-            }
+            //}
 
             foreach (var job in newJobs)
             {
@@ -305,7 +306,7 @@ namespace Game.World
             isJobRunning = true;
             //Debug.LogFormat("Load Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
 
-            string sceneName = WorldUtility.GetSubSceneName(job.Region.SuperRegion.Type, job.Region.UniqueId, job.SceneType);
+            string sceneName = WorldUtility.GetSubSceneName(job.Region.Id, job.SceneType);
             var subSceneRoot = job.Region.GetSubSceneRoot(job.SceneType);
 
             //editor subScenes are loaded (no streaming)
@@ -342,7 +343,7 @@ namespace Game.World
                     Scene scene = SceneManager.GetSceneByName(sceneName);
                     var root = scene.GetRootGameObjects()[0].transform;
                     SceneManager.MoveGameObjectToScene(root.gameObject, gameObject.scene);
-                    root.SetParent(job.Region.transform);
+                    root.SetParent(job.Region.transform, false);
                     job.SubSceneRoot = root;
 
                     async = SceneManager.UnloadSceneAsync(sceneName);
@@ -431,7 +432,7 @@ namespace Game.World
             {
                 var region = transform.GetChild(i).GetComponent<RegionBase>();
 
-                if (region != null)
+                if (region)
                 {
                     regions.Add(region);
                 }
@@ -439,12 +440,6 @@ namespace Game.World
 
             foreach (var region in regions)
             {
-                if (!region.IsRegionIdUnique())
-                {
-                    Debug.LogErrorFormat("Several Regions have the same Id as Region \"{0}\"", region.name);
-                    continue;
-                }
-
                 foreach (var subSceneType in region.SubSceneTypes)
                 {
                     if (region.GetSubSceneRoot(subSceneType) != null)
@@ -454,7 +449,7 @@ namespace Game.World
                     }
 
                     //paths
-                    string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, eSuperRegionType.Centre, region.UniqueId, subSceneType);
+                    string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, region.Id, subSceneType);
                     string subScenePathFull = WorldUtility.GetFullPath(subScenePath);
 
                     Scene subScene = new Scene();
@@ -524,50 +519,43 @@ namespace Game.World
 
             foreach (var region in regions)
             {
-                if (!region.IsRegionIdUnique())
-                {
-                    Debug.LogErrorFormat("Several Regions have the same Id as Region \"{0}\"", region.name);
-                    continue;
-                }
-
                 foreach (var subSceneType in region.SubSceneTypes)
                 {
-                    if (region.GetSubSceneRoot(subSceneType) == null)
+                    var root = region.GetSubSceneRoot(subSceneType);
+
+                    if (!root || root.childCount == 0) //if root is null or empty there is no need to create a subScene
                     {
                         continue;
                     }
 
-                    var root = region.GetSubSceneRoot(subSceneType);
+                    //paths
+                    string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, region.Id, subSceneType);
+                    //string subScenePathFull = WorldUtility.GetFullPath(subScenePath);
 
-                    if (root.childCount != 0)
-                    {
-                        foreach (var superRegionType in Enum.GetValues(typeof(eSuperRegionType)).Cast<eSuperRegionType>())
-                        {
-                            //paths
-                            string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, superRegionType, region.UniqueId, subSceneType);
-                            //string subScenePathFull = WorldUtility.GetFullPath(subScenePath);
+                    //moving copy to subScene
+                    root.SetParent(null,false);
+                    var subScene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+                    UnityEditor.SceneManagement.EditorSceneManager.MoveGameObjectToScene(root.gameObject, subScene);
 
-                            //duplicating
-                            var rootCopyGO = Instantiate(root.gameObject, root.position, Quaternion.identity);
-                            rootCopyGO.name = root.name;
-                            rootCopyGO.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[superRegionType]));
+                    //saving and closing the sub scene
+                    UnityEditor.SceneManagement.EditorSceneManager.SaveScene(subScene, subScenePath);
+                    UnityEditor.SceneManagement.EditorSceneManager.CloseScene(subScene, true);
 
-                            //moving copy to subScene
-                            var subScene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
-                            UnityEditor.SceneManagement.EditorSceneManager.MoveGameObjectToScene(rootCopyGO, subScene);
+                    //add subScene to buildsettings
+                    var buildSettingsScenes = UnityEditor.EditorBuildSettings.scenes.ToList();
+                    buildSettingsScenes.Add(new UnityEditor.EditorBuildSettingsScene(subScenePath, true));
+                    UnityEditor.EditorBuildSettings.scenes = buildSettingsScenes.ToArray();
 
-                            //saving and closing the sub scene
-                            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(subScene, subScenePath);
-                            UnityEditor.SceneManagement.EditorSceneManager.CloseScene(subScene, true);
-
-                            var buildSettingsScenes = UnityEditor.EditorBuildSettings.scenes.ToList();
-                            buildSettingsScenes.Add(new UnityEditor.EditorBuildSettingsScene(subScenePath, true));
-                            UnityEditor.EditorBuildSettings.scenes = buildSettingsScenes.ToArray();
-                        }
-                    }
-
-                    //destroying original root
-                    DestroyImmediate(root.gameObject);
+                    // if (root.childCount != 0)
+                    // {
+                    //     foreach (var superRegionType in Enum.GetValues(typeof(eSuperRegionType)).Cast<eSuperRegionType>())
+                    //     {
+                    //         //duplicating
+                    //         var rootCopyGO = Instantiate(root.gameObject, root.position, Quaternion.identity);
+                    //         rootCopyGO.name = root.name;
+                    //         rootCopyGO.transform.Translate(Vector3.Scale(worldSize, SUPERREGION_OFFSETS[superRegionType]));
+                    //     }
+                    // }
                 }
             }
 

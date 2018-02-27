@@ -10,7 +10,7 @@ namespace Game.World
     {
         protected RegionBase self;
 
-        private SerializedProperty idProperty;
+        //private SerializedProperty idProperty;
         private SerializedProperty boundsSizeProperty;
         private SerializedProperty overrideRenderDistanceFarProperty;
         private SerializedProperty overrideRenderDistanceInactiveProperty;
@@ -22,7 +22,7 @@ namespace Game.World
         {
             self = target as RegionBase;
 
-            idProperty = serializedObject.FindProperty("id");
+            //idProperty = serializedObject.FindProperty("id");
             boundsSizeProperty = serializedObject.FindProperty("boundsSize");
             overrideRenderDistanceFarProperty = serializedObject.FindProperty("overrideRenderDistanceFar");
             overrideRenderDistanceInactiveProperty = serializedObject.FindProperty("overrideRenderDistanceInactive");
@@ -44,7 +44,7 @@ namespace Game.World
 
             EditorGUILayout.LabelField("----");
 
-            EditorGUILayout.LabelField("Id", idProperty.stringValue);
+            //EditorGUILayout.LabelField("Id", idProperty.stringValue);
 
             boundsSizeProperty.vector3Value = EditorGUILayout.Vector3Field("Bounds Size", boundsSizeProperty.vector3Value);
 
