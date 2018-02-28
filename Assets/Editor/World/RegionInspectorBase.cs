@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,7 +11,6 @@ namespace Game.World
     {
         protected RegionBase self;
 
-        //private SerializedProperty idProperty;
         private SerializedProperty boundsSizeProperty;
         private SerializedProperty overrideRenderDistanceFarProperty;
         private SerializedProperty overrideRenderDistanceInactiveProperty;
@@ -18,11 +18,13 @@ namespace Game.World
         private SerializedProperty localRenderDistanceInactiveProperty;
         private SerializedProperty drawBoundsProperty;
 
+        private List<SubScene> loadedSubScenes;
+        private bool needSubSceneReloading;
+
         private void OnEnable()
         {
             self = target as RegionBase;
 
-            //idProperty = serializedObject.FindProperty("id");
             boundsSizeProperty = serializedObject.FindProperty("boundsSize");
             overrideRenderDistanceFarProperty = serializedObject.FindProperty("overrideRenderDistanceFar");
             overrideRenderDistanceInactiveProperty = serializedObject.FindProperty("overrideRenderDistanceInactive");
@@ -30,21 +32,22 @@ namespace Game.World
             localRenderDistanceInactiveProperty = serializedObject.FindProperty("localRenderDistanceInactive");
             drawBoundsProperty = serializedObject.FindProperty("drawBounds");
 
-            //if (string.IsNullOrEmpty(idProperty.stringValue))
-            //{
-            //    idProperty.stringValue = Guid.NewGuid().ToString();
-
-            //    serializedObject.ApplyModifiedProperties();
-            //}
+            loadedSubScenes = self.GetAllSubScenes();
         }
 
         public override void OnInspectorGUI()
         {
+            //
+            if (needSubSceneReloading)
+            {
+                loadedSubScenes = self.GetAllSubScenes();
+                needSubSceneReloading = false;
+            }
+
+            //
             //base.OnInspectorGUI();
 
             EditorGUILayout.LabelField("----");
-
-            //EditorGUILayout.LabelField("Id", idProperty.stringValue);
 
             boundsSizeProperty.vector3Value = EditorGUILayout.Vector3Field("Bounds Size", boundsSizeProperty.vector3Value);
 
@@ -72,9 +75,16 @@ namespace Game.World
             {
                 GUILayout.Label("");
 
-                if (GUILayout.Button("Create SubScenes"))
+                foreach (var subSceneMode in self.AvailableSubSceneModes)
                 {
-                    self.SendMessage("CreateSubScenes");
+                    foreach (var subSceneType in Enum.GetValues(typeof(eSubSceneType)).Cast<eSubSceneType>())
+                    {
+                        if (!self.GetSubSceneRoot(subSceneType, subSceneMode, loadedSubScenes) && GUILayout.Button("Create " + WorldUtility.GetSubSceneRootName(subSceneMode, subSceneType)))
+                        {
+                            UnityEngine.EventSystems.ExecuteEvents.Execute<IRegionEventHandler>(self.gameObject, null, (x, y) => x.CreateSubScene(subSceneMode, subSceneType));
+                            needSubSceneReloading = true;
+                        }
+                    }
                 }
 
                 GUILayout.Label("");

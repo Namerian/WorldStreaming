@@ -8,18 +8,33 @@ namespace Game.World
 {
     public class Region : RegionBase
     {
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+
+
+        }
+
         public override void Initialize(SuperRegion superRegion)
         {
             base.Initialize(superRegion);
         }
 
-        public override List<eSubSceneMode> SubSceneTypes
+        public override List<eSubSceneMode> AvailableSubSceneModes
         {
             get
             {
                 return new List<eSubSceneMode>() {
                     eSubSceneMode.Normal
                 };
+            }
+        }
+
+        protected override eSubSceneMode InitialSubSceneMode
+        {
+            get
+            {
+                return eSubSceneMode.Normal;
             }
         }
 

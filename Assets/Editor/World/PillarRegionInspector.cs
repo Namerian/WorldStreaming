@@ -11,16 +11,6 @@ namespace Game.World
         public override void OnInspectorGUI()
         {
             base.OnInspectorGUI();
-
-            //if (!Application.isPlaying)
-            //{
-            //    ShowSubSceneMenuGroup("All", self.SubSceneTypes);
-
-            //    foreach (var subSceneType in self.SubSceneTypes)
-            //    {
-            //        ShowSubSceneMenu(subSceneType);
-            //    }
-            //}
         }
     }
 }

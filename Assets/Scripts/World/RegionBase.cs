@@ -8,23 +8,8 @@ using UnityEngine;
 namespace Game.World
 {
     [RequireComponent(typeof(UniqueId))]
-    public abstract class RegionBase : MonoBehaviour
+    public abstract class RegionBase : MonoBehaviour, IRegionEventHandler
     {
-        public enum eRegionMode
-        {
-            Near,
-            Far,
-            Inactive
-        }
-
-        public enum eSubSceneState
-        {
-            Unloaded,
-            Loading,
-            Loaded,
-            Unloading
-        }
-
         //========================================================================================
 
         #region member variables
@@ -56,7 +41,7 @@ namespace Game.World
         private bool isInitialized;
         protected eSubSceneState[] subSceneStates = new eSubSceneState[Enum.GetValues(typeof(eSubSceneType)).Length];
         private eRegionMode currentRegionMode = eRegionMode.Inactive;
-        private eSubSceneMode currentSubSceneMode = eSubSceneMode.Normal;
+        private eSubSceneMode currentSubSceneMode;
         private eSubSceneMode previousSubSceneState = eSubSceneMode.Normal;
         private bool hasSubSceneModeChanged = false;
 
@@ -74,56 +59,15 @@ namespace Game.World
 
         #region properties
 
-        public Bounds Bounds
-        {
-            get
-            {
-                return new Bounds(transform.position, boundsSize);
-            }
-        }
+        public Bounds Bounds { get { return new Bounds(transform.position, boundsSize); } }
 
-        public string Id
-        {
-            get
-            {
-                if (!uniqueId)
-                {
-                    uniqueId = GetComponent<UniqueId>();
-                }
-                return uniqueId.Id;
-            }
-        }
+        public string Id { get { if (!uniqueId) { uniqueId = GetComponent<UniqueId>(); } return uniqueId.Id; } }
 
-        public SuperRegion SuperRegion
-        {
-            get
-            {
-                return superRegion;
-            }
-        }
+        public SuperRegion SuperRegion { get { return superRegion; } }
 
-        public float RenderDistanceFar
-        {
-            get
-            {
-                if (overrideRenderDistanceFar)
-                {
-                    return localRenderDistanceFar;
-                }
-                else
-                {
-                    return superRegion.World.RenderDistanceFar;
-                }
-            }
-        }
+        public float RenderDistanceFar { get { return overrideRenderDistanceFar ? localRenderDistanceFar : superRegion.World.RenderDistanceFar; } }
 
-        public float RenderDistanceInactive
-        {
-            get
-            {
-                return overrideRenderDistanceInactive ? localRenderDistanceInactive : superRegion.World.RenderDistanceInactive;
-            }
-        }
+        public float RenderDistanceInactive { get { return overrideRenderDistanceInactive ? localRenderDistanceInactive : superRegion.World.RenderDistanceInactive; } }
 
         public eSubSceneMode CurrentSubSceneMode
         {
@@ -148,7 +92,9 @@ namespace Game.World
 
         #region abstract
 
-        public abstract List<eSubSceneMode> SubSceneTypes { get; }
+        public abstract List<eSubSceneMode> AvailableSubSceneModes { get; }
+
+        protected abstract eSubSceneMode InitialSubSceneMode { get; }
 
         #endregion abstract
 
@@ -183,7 +129,7 @@ namespace Game.World
         // #endif
 
 #if UNITY_EDITOR
-        private void OnValidate()
+        protected virtual void OnValidate()
         {
             float part = localRenderDistanceFar * 0.2f;
             if (part < 1)
@@ -464,7 +410,39 @@ namespace Game.World
             return null;
         }
 
+        /// <summary>
+        /// Returns the Transform of the SubScene of chosen mode and type.
+        /// </summary>
+        /// <param name="subSceneType"></param>
+        /// <param name="subSceneMode"></param>
+        /// <param name="subSceneList"></param>
+        /// <returns></returns>
+        public Transform GetSubSceneRoot(eSubSceneType subSceneType, eSubSceneMode subSceneMode, List<SubScene> subSceneList = null)
+        {
+            if (subSceneList == null)
+            {
+                subSceneList = GetAllSubScenes();
+            }
+
+            foreach (var subScene in subSceneList)
+            {
+                if (subScene.SubSceneMode == subSceneMode && subScene.SubSceneType == subSceneType)
+                {
+                    return subScene.transform;
+                }
+            }
+
+            return null;
+        }
+
         #endregion public methods       
+
+        //========================================================================================
+
+        protected void ChangeSubSceneMode(eSubSceneMode newMode)
+        {
+
+        }
 
         //========================================================================================
 
@@ -562,6 +540,30 @@ namespace Game.World
                 {
                     subSceneStates[index] = eSubSceneState.Unloaded;
                 }
+            }
+        }
+
+        void IRegionEventHandler.CreateSubScene(eSubSceneMode subSceneMode, eSubSceneType subSceneType)
+        {
+            string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, Id, subSceneMode, subSceneType);
+            string subScenePathFull = WorldUtility.GetFullPath(subScenePath);
+
+            if (GetSubSceneRoot(subSceneType) != null)
+            {
+                return;
+            }
+            else if (System.IO.File.Exists(subScenePathFull))
+            {
+                Debug.LogFormat("SubScene \"{0}\" already exists but is not loaded!", subScenePath);
+                return;
+            }
+            else
+            {
+                var rootGO = new GameObject(WorldUtility.GetSubSceneRootName(subSceneMode, subSceneType), typeof(SubScene));
+                rootGO.GetComponent<SubScene>().Initialize(subSceneMode, subSceneType);
+
+                var root = rootGO.transform;
+                root.SetParent(transform, false);
             }
         }
 

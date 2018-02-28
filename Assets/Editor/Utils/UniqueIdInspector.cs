@@ -16,7 +16,7 @@ namespace Game.Utilities
         {
             self = target as UniqueId;
 
-            idProperty = serializedObject.FindProperty("id");
+            idProperty = serializedObject.FindProperty("uniqueId");
         }
 
         public override void OnInspectorGUI()

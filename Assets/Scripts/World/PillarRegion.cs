@@ -11,7 +11,7 @@ namespace Game.World
             base.Initialize(superRegion);
         }
 
-        public override List<eSubSceneMode> SubSceneTypes
+        public override List<eSubSceneMode> AvailableSubSceneModes
         {
             get
             {
@@ -19,6 +19,14 @@ namespace Game.World
                     eSubSceneMode.IntactPillar,
                     eSubSceneMode.DestroyedPillar
                 };
+            }
+        }
+
+        protected override eSubSceneMode InitialSubSceneMode
+        {
+            get
+            {
+                return eSubSceneMode.IntactPillar;
             }
         }
 

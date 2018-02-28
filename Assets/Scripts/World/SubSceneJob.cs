@@ -5,12 +5,6 @@ using UnityEngine;
 
 namespace Game.World
 {
-    public enum eSubSceneJobType
-    {
-        Load,
-        Unload
-    }
-
     public class SubSceneJob
     {
         public RegionBase Region { get; private set; }
