@@ -5,21 +5,23 @@ using UnityEngine;
 
 namespace Game.Utilities
 {
-    [CustomPropertyDrawer(typeof(UniqueId))]
-    public class UniqueIdInspector : PropertyDrawer
+    [CustomEditor(typeof(UniqueId))]
+    public class UniqueIdInspector : Editor
     {
-        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        private UniqueId self;
+
+        private SerializedProperty idProperty;
+
+        private void OnEnable()
         {
-            label = EditorGUI.BeginProperty(position, label, property);
+            self = target as UniqueId;
 
-            Rect contentPosition = EditorGUI.PrefixLabel(position, label);
+            idProperty = serializedObject.FindProperty("id");
+        }
 
-            EditorGUI.indentLevel = 0;
-            EditorGUIUtility.labelWidth = 1f;
-
-            EditorGUI.LabelField(contentPosition, label, new GUIContent(property.FindPropertyRelative("uniqueId").stringValue));
-
-            EditorGUI.EndProperty();
+        public override void OnInspectorGUI()
+        {
+            EditorGUILayout.LabelField("Id", idProperty.stringValue);
         }
     }
 }

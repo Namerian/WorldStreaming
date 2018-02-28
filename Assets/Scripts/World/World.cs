@@ -306,8 +306,8 @@ namespace Game.World
             isJobRunning = true;
             //Debug.LogFormat("Load Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
 
-            string sceneName = WorldUtility.GetSubSceneName(job.Region.Id, job.SceneType);
-            var subSceneRoot = job.Region.GetSubSceneRoot(job.SceneType);
+            string sceneName = WorldUtility.GetSubSceneName(job.Region.Id, job.SubSceneMode);
+            var subSceneRoot = job.Region.GetSubSceneRoot(job.SubSceneMode);
 
             //editor subScenes are loaded (no streaming)
             if (editorSubScenesLoaded)
@@ -322,7 +322,7 @@ namespace Game.World
             {
                 if (subSceneRoot)
                 {
-                    Debug.LogWarningFormat("Load Job for existing subScene started! region=\"{0}\", subScene=\"{1}\"", job.Region.name, job.SceneType.ToString());
+                    Debug.LogWarningFormat("Load Job for existing subScene started! region=\"{0}\", subScene=\"{1}\"", job.Region.name, job.SubSceneMode.ToString());
                 }
                 else if (!Application.CanStreamedLevelBeLoaded(sceneName))
                 {
@@ -372,7 +372,7 @@ namespace Game.World
             isJobRunning = true;
             //Debug.LogFormat("Unload Job started: {0} {1} {2}", job.Region.SuperRegion.Type, job.Region.name, job.SceneType);
 
-            var subSceneRoot = job.Region.GetSubSceneRoot(job.SceneType);
+            var subSceneRoot = job.Region.GetSubSceneRoot(job.SubSceneMode);
 
             //editor subScenes are loaded (no streaming)
             if (editorSubScenesLoaded)

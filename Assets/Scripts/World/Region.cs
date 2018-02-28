@@ -13,31 +13,29 @@ namespace Game.World
             base.Initialize(superRegion);
         }
 
-        public override List<eSubSceneType> SubSceneTypes
+        public override List<eSubSceneMode> SubSceneTypes
         {
             get
             {
-                return new List<eSubSceneType>() {
-                    eSubSceneType.Always,
-                    eSubSceneType.Far,
-                    eSubSceneType.Near
+                return new List<eSubSceneMode>() {
+                    eSubSceneMode.Normal
                 };
             }
         }
 
-        protected override eSubSceneType GetSubSceneType(eSubSceneBaseType baseType)
-        {
-            switch (baseType)
-            {
-                case eSubSceneBaseType.Always:
-                    return eSubSceneType.Always;
-                case eSubSceneBaseType.Near:
-                    return eSubSceneType.Near;
-                case eSubSceneBaseType.Far:
-                    return eSubSceneType.Far;
-            }
+        //protected override eSubSceneState GetSubSceneType(eSubSceneType baseType)
+        //{
+        //    switch (baseType)
+        //    {
+        //        case eSubSceneType.Always:
+        //            return Game.World.eSubSceneMode.Always;
+        //        case eSubSceneType.Near:
+        //            return Game.World.eSubSceneMode.Near;
+        //        case eSubSceneType.Far:
+        //            return Game.World.eSubSceneMode.Far;
+        //    }
 
-            return eSubSceneType.None;
-        }
+        //    return Game.World.eSubSceneMode.None;
+        //}
     }
 } //end of namespace
