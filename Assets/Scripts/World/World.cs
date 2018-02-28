@@ -47,8 +47,8 @@ namespace Game.World
         [HideInInspector]
         private float secondaryPositionDistanceModifier;
 
-        List<SuperRegion> superRegions = new List<SuperRegion>();
-        Queue<SubSceneJob> subSceneJobs = new Queue<SubSceneJob>();
+        List<SuperRegion> superRegionsList = new List<SuperRegion>();
+        List<SubSceneJob> subSceneJobsList = new List<SubSceneJob>();
 
         bool isInitialized = false;
         bool isJobRunning = false;
@@ -102,15 +102,8 @@ namespace Game.World
             var teleportPositions = new List<Vector3>();
             var halfSize = worldSize * 0.5f;
 
-            //if (cameraPos.x > halfSize.x - preTeleportOffset)
-            //{
-            //    teleportPositions.Add(cameraPos + new Vector3(-worldSize.x, 0, 0));
-            //}
-            //else if (cameraPos.x < -halfSize.x + preTeleportOffset)
-            //{
-            //    teleportPositions.Add(cameraPos + new Vector3(worldSize.x, 0, 0));
-            //}
-
+            //***********************************************
+            //identifying teleport positions
             if (cameraPos.y > halfSize.y - preTeleportOffset)
             {
                 teleportPositions.Add(cameraPos + new Vector3(0, -worldSize.y, 0));
@@ -129,35 +122,46 @@ namespace Game.World
                 teleportPositions.Add(cameraPos + new Vector3(0, 0, worldSize.z));
             }
 
-            //string positions = "";
-            //foreach (var pos in teleportPositions)
-            //{
-            //    positions += pos.ToString() + " ";
-            //}
-            //Debug.LogFormat("World: teleportPositions = {0}", positions);
+            //***********************************************
+            //updating one super region, getting a list of new jobs
+            var newJobs = superRegionsList[currentSuperRegionIndex].UpdateSuperRegion(cameraTransform, teleportPositions);
 
-            var newJobs = superRegions[currentSuperRegionIndex].UpdateSuperRegion(cameraTransform, teleportPositions);
-            //if (newJobs.Count != 0)
-            //{
-                //Debug.Log("SuperRegion " + superRegions[currentSuperRegionIndex] + ": " + newJobs.Count + " new jobs");
-            //}
-
-            foreach (var job in newJobs)
-            {
-                subSceneJobs.Enqueue(job);
-            }
-
-            //Debug.Log("currentSuperRegionIndex=" + currentSuperRegionIndex);
             currentSuperRegionIndex++;
-            if (currentSuperRegionIndex == superRegions.Count)
+            if (currentSuperRegionIndex == superRegionsList.Count)
             {
                 currentSuperRegionIndex = 0;
             }
 
-            if (!isJobRunning && subSceneJobs.Count != 0)
+            //***********************************************
+            //cleaning and updating the list of SubSceneJobs
+            foreach (var job in newJobs)
             {
-                //Debug.Log("jobCount = " + subSceneJobs.Count);
-                var newJob = subSceneJobs.Dequeue();
+                eSubSceneJobType oppositeJobType = job.JobType == eSubSceneJobType.Load ? eSubSceneJobType.Unload : eSubSceneJobType.Load;
+
+                int indexOfOppositeJob = subSceneJobsList.FindIndex(
+                    item => item.Region.Id == job.Region.Id
+                    && item.JobType == oppositeJobType
+                    && item.SubSceneMode == job.SubSceneMode
+                    && item.SubSceneType == job.SubSceneType
+                );
+
+                if (indexOfOppositeJob >= 0)
+                {
+                    subSceneJobsList.RemoveAt(indexOfOppositeJob);
+                }
+            }
+
+            foreach (var job in newJobs) //this is temporarily in its own loop, will change when/if priorities are added
+            {
+                subSceneJobsList.Add(job);
+            }
+
+            //***********************************************
+            //executing jobs
+            if (!isJobRunning && subSceneJobsList.Count != 0)
+            {
+                var newJob = subSceneJobsList[0];
+                subSceneJobsList.RemoveAt(0);
 
                 switch (newJob.JobType)
                 {
@@ -169,7 +173,7 @@ namespace Game.World
                         break;
                 }
             }
-        }
+        } //end of Update()
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -194,7 +198,7 @@ namespace Game.World
                 preTeleportOffset = 1;
             }
 
-            if(secondaryPositionDistanceModifier < 0)
+            if (secondaryPositionDistanceModifier < 0)
             {
                 secondaryPositionDistanceModifier = 0;
             }
@@ -237,7 +241,7 @@ namespace Game.World
                     region.transform.SetParent(superRegion.transform, true);
 
                     //deactivating all subScenes
-                    foreach(Transform child in region.transform)
+                    foreach (Transform child in region.transform)
                     {
                         if (child.GetComponent<SubScene>())
                         {
@@ -247,7 +251,7 @@ namespace Game.World
                 }
 
                 superRegion.Initialize(eSuperRegionType.Centre, this, initialRegions);
-                superRegions.Add(superRegion);
+                superRegionsList.Add(superRegion);
             }
             //else if the subScenes are not loaded the world is duplicated and the initial (empty) regions are destroyed
             //create SuperRegions and clone the regions once for every SuperRegions
@@ -277,7 +281,7 @@ namespace Game.World
                     }
 
                     superRegion.Initialize(superRegionType, this, clonedRegions);
-                    superRegions.Add(superRegion);
+                    superRegionsList.Add(superRegion);
                 }
 
                 //destroy the initial regions
@@ -468,7 +472,7 @@ namespace Game.World
                             UnityEditor.SceneManagement.EditorSceneManager.MoveGameObjectToScene(rootGO, this.gameObject.scene);
 
                             var root = rootGO.transform;
-                            root.SetParent(region.transform);
+                            root.SetParent(region.transform, false);
 
                             if (!root.gameObject.activeSelf)
                             {

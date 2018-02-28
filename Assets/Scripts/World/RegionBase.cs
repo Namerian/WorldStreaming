@@ -42,7 +42,6 @@ namespace Game.World
         protected eSubSceneState[] subSceneStates = new eSubSceneState[Enum.GetValues(typeof(eSubSceneType)).Length];
         private eRegionMode currentRegionMode = eRegionMode.Inactive;
         private eSubSceneMode currentSubSceneMode;
-        private eSubSceneMode previousSubSceneState = eSubSceneMode.Normal;
         private bool hasSubSceneModeChanged = false;
 
         private List<Vector3> boundsCorners;
@@ -69,22 +68,7 @@ namespace Game.World
 
         public float RenderDistanceInactive { get { return overrideRenderDistanceInactive ? localRenderDistanceInactive : superRegion.World.RenderDistanceInactive; } }
 
-        public eSubSceneMode CurrentSubSceneMode
-        {
-            get
-            {
-                return currentSubSceneMode;
-            }
-            protected set
-            {
-                if (value != currentSubSceneMode)
-                {
-                    previousSubSceneState = currentSubSceneMode;
-                    currentSubSceneMode = value;
-                    hasSubSceneModeChanged = true;
-                }
-            }
-        }
+        public eSubSceneMode CurrentSubSceneMode { get { return currentSubSceneMode; } }
 
         #endregion properties
 
@@ -187,18 +171,22 @@ namespace Game.World
             myTransform = transform;
             this.superRegion = superRegion;
 
+            currentSubSceneMode = InitialSubSceneMode;
+
+            //initializing SubScene states array
             var subScenes = GetAllSubScenes();
             foreach (var subSceneType in Enum.GetValues(typeof(eSubSceneType)).Cast<eSubSceneType>())
             {
                 int index = (int)subSceneType;
                 subSceneStates[index] = eSubSceneState.Unloaded;
 
-                if (subScenes.FirstOrDefault(item => item.SubSceneType == subSceneType && item.SubSceneMode == currentSubSceneMode))
-                {
-                    subSceneStates[index] = eSubSceneState.Loaded;
-                }
+                //if (subScenes.FirstOrDefault(item => item.SubSceneType == subSceneType && item.SubSceneMode == currentSubSceneMode))
+                //{
+                //    subSceneStates[index] = eSubSceneState.Loaded;
+                //}
             }
 
+            //computing corner positions
             Bounds bounds = new Bounds(myTransform.position, boundsSize);
             boundsCorners = new List<Vector3>(){
                 new Vector3(bounds.center.x + bounds.extents.x, bounds.center.y + bounds.extents.y, bounds.center.z + bounds.extents.z),
@@ -231,6 +219,7 @@ namespace Game.World
             //handling SubScene mode change
             if (hasSubSceneModeChanged)
             {
+                Debug.Log("Region \"" + name + "\": mode has changed!");
                 foreach (var subScene in SubScenes)
                 {
                     if (subScene.SubSceneMode != currentSubSceneMode)
@@ -263,15 +252,17 @@ namespace Game.World
             {
                 Vector3 vectorToCorner = corner - cameraPosition;
 
-                if (Vector3.Angle(vectorToCorner, cameraTransform.forward) < 100)
+                if (Vector3.Angle(vectorToCorner, cameraTransform.forward) < 90)
                 {
                     isVisible = true;
                     break;
                 }
             }
 
+            //compute distance and switch mode
             if (!isVisible)
             {
+                //Debug.Log("Region \"" + name + "\": is not visible!");
                 if (currentRegionMode != eRegionMode.Inactive)
                 {
                     result = SwitchMode(eRegionMode.Inactive);
@@ -441,7 +432,11 @@ namespace Game.World
 
         protected void ChangeSubSceneMode(eSubSceneMode newMode)
         {
-
+            if (newMode != currentSubSceneMode && AvailableSubSceneModes.Contains(newMode))
+            {
+                currentSubSceneMode = newMode;
+                hasSubSceneModeChanged = true;
+            }
         }
 
         //========================================================================================
@@ -491,15 +486,15 @@ namespace Game.World
             int index = (int)subSceneMode;
             eSubSceneState state = subSceneStates[index];
 
-            if (state == eSubSceneState.Loaded || state == eSubSceneState.Loading)
-            {
-                return null;
-            }
-            else
-            {
+            //if (state == eSubSceneState.Loaded || state == eSubSceneState.Loading)
+            //{
+            //    return null;
+            //}
+            //else
+            //{
                 subSceneStates[index] = eSubSceneState.Loading;
                 return new SubSceneJob(this, subSceneMode, subSceneType, eSubSceneJobType.Load, OnSubSceneJobDone);
-            }
+            //}
         }
 
         private SubSceneJob CreateUnloadSubSceneJob(eSubSceneMode subSceneMode, eSubSceneType subSceneType)
@@ -507,15 +502,15 @@ namespace Game.World
             int index = (int)subSceneMode;
             eSubSceneState state = subSceneStates[index];
 
-            if (state == eSubSceneState.Unloaded || state == eSubSceneState.Unloading)
-            {
-                return null;
-            }
-            else
-            {
+            //if (state == eSubSceneState.Unloaded || state == eSubSceneState.Unloading)
+            //{
+            //    return null;
+            //}
+            //else
+            //{
                 subSceneStates[index] = eSubSceneState.Unloading;
                 return new SubSceneJob(this, subSceneMode, subSceneType, eSubSceneJobType.Unload, OnSubSceneJobDone);
-            }
+            //}
         }
 
         private void OnSubSceneJobDone(SubSceneJob subSceneJob)
@@ -543,6 +538,7 @@ namespace Game.World
             }
         }
 
+#if UNITY_EDITOR
         void IRegionEventHandler.CreateSubScene(eSubSceneMode subSceneMode, eSubSceneType subSceneType)
         {
             string subScenePath = WorldUtility.GetSubScenePath(gameObject.scene.path, Id, subSceneMode, subSceneType);
@@ -566,6 +562,7 @@ namespace Game.World
                 root.SetParent(transform, false);
             }
         }
+#endif
 
         //#if UNITY_EDITOR
         //        private void CreateSubScenes()
@@ -596,7 +593,7 @@ namespace Game.World
         //        }
         //#endif
 
-        #endregion private methods
+#endregion private methods
 
         //========================================================================================
 

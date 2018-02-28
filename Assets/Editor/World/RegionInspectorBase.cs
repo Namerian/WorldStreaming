@@ -18,9 +18,6 @@ namespace Game.World
         private SerializedProperty localRenderDistanceInactiveProperty;
         private SerializedProperty drawBoundsProperty;
 
-        private List<SubScene> loadedSubScenes;
-        private bool needSubSceneReloading;
-
         private void OnEnable()
         {
             self = target as RegionBase;
@@ -31,18 +28,12 @@ namespace Game.World
             localRenderDistanceFarProperty = serializedObject.FindProperty("localRenderDistanceFar");
             localRenderDistanceInactiveProperty = serializedObject.FindProperty("localRenderDistanceInactive");
             drawBoundsProperty = serializedObject.FindProperty("drawBounds");
-
-            loadedSubScenes = self.GetAllSubScenes();
         }
 
         public override void OnInspectorGUI()
         {
             //
-            if (needSubSceneReloading)
-            {
-                loadedSubScenes = self.GetAllSubScenes();
-                needSubSceneReloading = false;
-            }
+            List<SubScene> loadedSubScenes = self.GetAllSubScenes();
 
             //
             //base.OnInspectorGUI();
@@ -82,7 +73,6 @@ namespace Game.World
                         if (!self.GetSubSceneRoot(subSceneType, subSceneMode, loadedSubScenes) && GUILayout.Button("Create " + WorldUtility.GetSubSceneRootName(subSceneMode, subSceneType)))
                         {
                             UnityEngine.EventSystems.ExecuteEvents.Execute<IRegionEventHandler>(self.gameObject, null, (x, y) => x.CreateSubScene(subSceneMode, subSceneType));
-                            needSubSceneReloading = true;
                         }
                     }
                 }
